@@ -1,32 +1,69 @@
-// index.js
-// where your node app starts
+require('dotenv');
+const express = require('express');
+const app = express();
+const bodyParser = require('body-parser');
+const cors = require('cors');
 
-// init project
-var express = require('express');
-var app = express();
 
-// enable CORS (https://en.wikipedia.org/wiki/Cross-origin_resource_sharing)
-// so that your API is remotely testable by FCC 
-var cors = require('cors');
+const dateFormateHandler = (req, res, next) => {
+    let requestedDate = req.params.date;
+    let [utcString, unixString] = ['',''];
+
+    if(!requestedDate){
+        unixString = new Date().getTime();
+        utcString = new Date().toUTCString();
+        req.dateObj = {unix: unixString, utcDate:utcString};
+    } else if(isValidUnixDateString(requestedDate)){
+        unixString = requestedDate
+        utcString = new Date(Number(requestedDate)).toUTCString();
+        req.dateObj = {unix: unixString, utcDate:utcString};
+    } else if(isValidDateString(requestedDate)){
+        unixString = new Date(requestedDate).getTime()
+        utcString = new Date(requestedDate).toUTCString();
+        req.dateObj = {unix: unixString, utcDate:utcString};
+    } else {
+        req.dateObj = { error : "Invalid Date" };
+    }
+    next();
+};
+const isValidDateString = (str) => {
+    return !isNaN(Date.parse(str));
+};
+
+const isValidUnixDateString = (str) => {
+    const unixTimeMs = Number(str) * 1000;
+    return !isNaN(unixTimeMs) && new Date(unixTimeMs).getTime() > 0;
+}
+
 app.use(cors({optionsSuccessStatus: 200}));  // some legacy browsers choke on 204
 
-// http://expressjs.com/en/starter/static-files.html
-app.use(express.static('public'));
+//bodyPArser middleware
+app.use(bodyParser.urlencoded({extended: false}));
 
-// http://expressjs.com/en/starter/basic-routing.html
-app.get("/", function (req, res) {
-  res.sendFile(__dirname + '/views/index.html');
+//middleware to log all requests 
+app.use(function(req, res, next) {
+    console.log(`${req.method} ${req.path} - ${req.ip}`);
+    next();
+});
+
+app.use("/public", express.static(__dirname+"/public"));
+
+app.get("/", (req,res) => {
+    res.sendFile(__dirname + "/views/index.html");
+});
+
+app.get("/api/:date?", dateFormateHandler, (req,res) => {
+    let jsonRes;
+    if(req.dateObj && req.dateObj.error){
+        jsonRes = req.dateObj
+    } else {
+        jsonRes = { unix: req.dateObj.unix, utc: req.dateObj.utcDate }
+    }
+    res.json(jsonRes);
 });
 
 
-// your first API endpoint... 
-app.get("/api/hello", function (req, res) {
-  res.json({greeting: 'hello API'});
-});
 
-
-
-// listen for requests :)
-var listener = app.listen(process.env.PORT, function () {
-  console.log('Your app is listening on port ' + listener.address().port);
+const listener = app.listen(process.env.PORT || 5000, function () {
+    console.log("Your app is listening on port " + listener.address().port);
 });
